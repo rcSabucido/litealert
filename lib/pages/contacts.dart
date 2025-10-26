@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'addContactView.dart';
 
 class ContactsPage extends StatelessWidget {
   const ContactsPage({Key? key, required this.title}) : super(key: key);
@@ -71,8 +72,16 @@ class ContactsPage extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Handle add contact
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddContactView(),
+            ),
+          );
+          if (result != null) {
+            print('New contact: $result');
+          }
         },
         child: const Icon(Icons.add),
       ),
