@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:litealert/pages/contactConfirmedView.dart';
 
 class AddContactView extends StatefulWidget {
   const AddContactView({Key? key}) : super(key: key);
@@ -22,7 +23,7 @@ class _AddContactViewState extends State<AddContactView> {
     super.dispose();
   }
 
-  void _saveContact() {
+  void _saveContact() async {
     if (_formKey.currentState!.validate()) {
       // Create contact object
       final newContact = {
@@ -30,9 +31,20 @@ class _AddContactViewState extends State<AddContactView> {
         'phone': _phoneController.text,
         'relationship': _selectedRelationship,
       };
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ContactConfirmedView(
+            contactName: _nameController.text,
+          ),
+        ),
+      );
       
       // Return the new contact to previous screen
-      Navigator.pop(context, newContact);
+      if (result == true && context.mounted) {
+        Navigator.pop(context, newContact);
+      }
     }
   }
 
