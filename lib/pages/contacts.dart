@@ -5,15 +5,26 @@ class ContactsPage extends StatelessWidget {
   final String title;
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: Center(
-        child: TextButton(
-          onPressed: () {},
-          child: const Text('Next'),
-        ),
+    return Center(
+      child: Column(
+        children: [
+          SizedBox(height: 40),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 30),
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 200, 168, 255),
+            ),
+            child: Text(
+              title.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 24.0,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
