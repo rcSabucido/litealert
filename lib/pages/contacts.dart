@@ -1,11 +1,41 @@
 import 'package:flutter/material.dart';
 import 'addContactView.dart';
+import '../services/contact_storage_service.dart';
 
-class ContactsPage extends StatelessWidget {
+class ContactsPage extends StatefulWidget {
   const ContactsPage({Key? key, required this.title}) : super(key: key);
   final String title;
-  
-  void _showContactOptions(BuildContext context, Map<String, String> contact) {
+
+  @override
+  State<ContactsPage> createState() => _ContactsPageState();
+}
+
+class _ContactsPageState extends State<ContactsPage> {
+  final ContactStorageService _storageService = ContactStorageService();
+  List<Map<String, String>> _contacts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    setState(() => _isLoading = true);
+    final contacts = await _storageService.loadContacts();
+    setState(() {
+      _contacts = contacts;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _deleteContact(int index) async {
+    await _storageService.deleteContact(index);
+    await _loadContacts();
+  }
+
+  void _showContactOptions(BuildContext context, Map<String, String> contact, int index) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -52,10 +82,14 @@ class ContactsPage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    // Handle delete action
-                    print('Delete contact: ${contact['name']}');
+                    await _deleteContact(index);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${contact['name']} deleted')),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
@@ -80,13 +114,6 @@ class ContactsPage extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    // Sample contact data
-    final contacts = [
-      {'name': 'Mama TM', 'phone': '09163137061', 'relationship': 'Family'},
-      {'name': 'Papa TM', 'phone': '09566784956', 'relationship': 'Friend'},
-      {'name': 'JM TM', 'phone': '+09682935959', 'relationship': 'Colleague'},
-    ];
-    
     return Scaffold(
       body: Column(
         children: [
@@ -98,7 +125,7 @@ class ContactsPage extends StatelessWidget {
               color: Color.fromARGB(255, 200, 168, 255),
             ),
             child: Text(
-              title.toUpperCase(),
+              widget.title.toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 24.0,
@@ -108,39 +135,49 @@ class ContactsPage extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: contacts.length,
-              separatorBuilder: (context, index) => const Divider(),
-              itemBuilder: (context, index) {
-                final contact = contacts[index];
-                return ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person),
-                  ),
-                  title: Text(contact['name']!),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(contact['phone']!),
-                      Text(
-                        contact['relationship']!,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12.0,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _contacts.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No contacts yet.\nTap + to add a contact.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
                         ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16.0),
+                        itemCount: _contacts.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final contact = _contacts[index];
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.person),
+                            ),
+                            title: Text(contact['name']!),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(contact['phone']!),
+                                Text(
+                                  contact['relationship']!,
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: () {
+                                _showContactOptions(context, contact, index);
+                              },
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {
-                      _showContactOptions(context, contact);
-                    },
-                  ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -153,7 +190,8 @@ class ContactsPage extends StatelessWidget {
             ),
           );
           if (result != null) {
-            print('New contact: $result');
+            await _storageService.addContact(result as Map<String, String>);
+            await _loadContacts();
           }
         },
         child: const Icon(Icons.add),

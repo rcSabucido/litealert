@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:litealert/pages/contactConfirmedView.dart';
+import '../services/contact_storage_service.dart';
 
 class AddContactView extends StatefulWidget {
   const AddContactView({Key? key}) : super(key: key);
@@ -13,6 +14,7 @@ class _AddContactViewState extends State<AddContactView> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   String _selectedRelationship = 'Family';
+  final ContactStorageService _storageService = ContactStorageService();
 
   final List<String> _relationships = ['Family', 'Friend', 'Colleague', 'Other'];
 
@@ -32,24 +34,30 @@ class _AddContactViewState extends State<AddContactView> {
         'relationship': _selectedRelationship,
       };
 
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ContactConfirmedView(
-            contactName: _nameController.text,
+      // Save to local storage
+      // await _storageService.addContact(newContact);
+
+      if (context.mounted) {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ContactConfirmedView(
+              contactName: _nameController.text,
+            ),
           ),
-        ),
-      );
-      
-      // Return the new contact to previous screen
-      if (result == true && context.mounted) {
-        Navigator.pop(context, newContact);
+        );
+        
+        // Return to contacts page
+        if (result == true && context.mounted) {
+          Navigator.pop(context, newContact);
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ...existing code...
     return Scaffold(
       body: Column(
         children: [
@@ -75,7 +83,7 @@ class _AddContactViewState extends State<AddContactView> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(width: 48), // Balance the back button width
+                const SizedBox(width: 48),
               ],
             ),
           ),
