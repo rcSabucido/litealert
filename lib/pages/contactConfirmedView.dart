@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
 class ContactConfirmedView extends StatelessWidget {
-  const ContactConfirmedView({Key? key, required this.contactName}) : super(key: key);
+  const ContactConfirmedView({
+    Key? key,
+    required this.contactName,
+    this.isEdit = false,
+  }) : super(key: key);
   
   final String contactName;
+  final bool isEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +32,9 @@ class ContactConfirmedView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              const Text(
-                'Contact Added',
-                style: TextStyle(
+              Text(
+                isEdit ? 'Contact Updated' : 'Contact Added',
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
@@ -37,7 +42,9 @@ class ContactConfirmedView extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                '$contactName has been added to your contacts',
+                isEdit
+                    ? '$contactName has been updated'
+                    : '$contactName has been added to your contacts',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],

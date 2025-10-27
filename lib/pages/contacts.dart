@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:litealert/pages/editContactView.dart';
 import 'addContactView.dart';
 import '../services/contact_storage_service.dart';
 
@@ -35,6 +36,11 @@ class _ContactsPageState extends State<ContactsPage> {
     await _loadContacts();
   }
 
+  Future<void> _updateContact(int index, Map<String, String> updatedContact) async {
+    await _storageService.updateContact(index, updatedContact);
+    await _loadContacts();
+  }
+
   void _showContactOptions(BuildContext context, Map<String, String> contact, int index) {
     showModalBottomSheet(
       context: context,
@@ -59,10 +65,27 @@ class _ContactsPageState extends State<ContactsPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    // Handle edit action
-                    print('Edit contact: ${contact['name']}');
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EditContactView(
+                          contact: contact,
+                          contactIndex: index,
+                        ),
+                      ),
+                    );
+                    if (result != null) {
+                      final updatedContact = result as Map<String, String>;
+                      updatedContact.remove('index');
+                      await _updateContact(index, updatedContact);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${updatedContact['name']} updated')),
+                        );
+                      }
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
