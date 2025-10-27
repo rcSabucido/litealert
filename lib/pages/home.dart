@@ -1,4 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:simple_ripple_animation/simple_ripple_animation.dart';
+import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -19,8 +24,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _counter = 0;
+  //int _counter = 0;
+  bool paired = true;
+  int batteryPercentage = 75;
 
+  /*
   void _incrementCounter() {
     setState(() {
       // This call to setState tells the Flutter framework that something has
@@ -31,6 +39,7 @@ class _HomePageState extends State<HomePage> {
       _counter++;
     });
   }
+  */
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +50,43 @@ class _HomePageState extends State<HomePage> {
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the HomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+      appBar: PreferredSize(
+        preferredSize: Size(100, 100),
+        child: SafeArea(
+          child: Container(
+            height: 140,
+            color: Theme.of(context).colorScheme.inversePrimary,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          Text("Hello there,"),
+                          Text(
+                            "John Doe",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: SizedBox(
+                    width: 128,
+                    height: 65,
+                    child: FittedBox(child: const Icon(Icons.verified_user)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       body: Center(
         // Center is a layout widget. It takes a single child and positions it
@@ -69,19 +107,108 @@ class _HomePageState extends State<HomePage> {
           // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            Text(
+              paired
+                  ? 'Your WakeAlert device has\nbeen paired successfully.'
+                  : 'Pair your WakeAlert device\nwith Bluetooth to your phone.',
+              textAlign: TextAlign.center,
+
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: 50, bottom: 40),
+              child: paired
+                  ? SizedBox(
+                      width: 256,
+                      height: 256,
+                      child: LiquidCircularProgressIndicator(
+                        value: math.max(
+                          math.min(100.0, batteryPercentage / 100.0),
+                          0,
+                        ),
+                        valueColor: AlwaysStoppedAnimation(
+                          Theme.of(context).colorScheme.inversePrimary,
+                        ), // Defaults to the current Theme's accentColor.
+                        backgroundColor: Colors
+                            .white, // Defaults to the current Theme's backgroundColor.
+                        borderColor: Theme.of(context).colorScheme.surface,
+                        borderWidth: 5.0,
+                        direction: Axis
+                            .vertical, // The direction the liquid moves (Axis.vertical = bottom to top, Axis.horizontal = left to right). Defaults to Axis.vertical.
+                        center: Text(
+                          "$batteryPercentage%",
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.tertiary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 32,
+                          ),
+                        ),
+                      ),
+                    )
+                  : RippleAnimation(
+                      color: Colors.deepPurple,
+                      delay: const Duration(milliseconds: 500),
+                      repeat: true,
+                      minRadius: 64,
+                      maxRadius: 96,
+                      ripplesCount: 8,
+                      duration: const Duration(milliseconds: 6 * 700),
+                      child: CircleAvatar(
+                        minRadius: 144,
+                        maxRadius: 144,
+                        child: SizedBox.expand(
+                          child: FittedBox(
+                            fit: BoxFit.fill,
+                            child: Padding(
+                              padding: EdgeInsets.all(10),
+                              child: Icon(Icons.bluetooth),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: Theme.of(context).colorScheme.inversePrimary,
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.inversePrimary,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 40,
+                  right: 40,
+                  top: 20,
+                  bottom: 20,
+                ),
+                child: Text(
+                  paired ? "Paired" : "Pairing",
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+            ),
+            /*
             const Text('You have pushed the button this many times:'),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            */
           ],
         ),
       ),
+      /*
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
+      */
     );
   }
 }
