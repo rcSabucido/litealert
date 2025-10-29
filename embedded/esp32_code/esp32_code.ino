@@ -4,6 +4,8 @@
 
 #include <supermeatboy1-project-1_inferencing.h>
 
+#include "test_speech_8bit.h"
+
 // === CONFIG ===
 #define MIC_PIN ADC1_CHANNEL_7  // GPIO35
 #define SAMPLE_RATE 16000       // 16 kHz sample rate
@@ -12,7 +14,11 @@
 #define BUFFER_SIZE 16000
 volatile int16_t audioBuffer[BUFFER_SIZE];
 volatile int16_t processedAudioBuffer[BUFFER_SIZE];
-volatile uint16_t writeIndex = 0;
+
+volatile int32_t writeIndex = 0;
+volatile int32_t ttsReadIndex = 0;
+
+bool isDiagnostic = false;
 
 #define VAD_THRESHOLD 5000
 #define VAD_MIN_COUNT 10
@@ -21,14 +27,25 @@ volatile uint16_t writeIndex = 0;
 hw_timer_t* timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
+hw_timer_t* ttsTimer = NULL;
+portMUX_TYPE ttsTimerMux = portMUX_INITIALIZER_UNLOCKED;
+
+#define OE_ON       GPIO.out_w1tc = (1 << 26);
+#define OE_OFF      GPIO.out_w1ts = (1 << 26);
+#define SER_ON      GPIO.out_w1ts = (1 << 27);
+#define SER_OFF     GPIO.out_w1tc = (1 << 27);
+#define RCLK_ON     GPIO.out_w1ts = (1 << 14);
+#define RCLK_OFF    GPIO.out_w1tc = (1 << 14);
+#define SRCLK_ON    GPIO.out_w1ts = (1 << 12);
+#define SRCLK_OFF   GPIO.out_w1tc = (1 << 12);
+
 // ADC characteristics
 esp_adc_cal_characteristics_t adc_chars;
 
 int16_t adc_to_short(int input) {
-  int32_t centered = (int32_t) input - 2048;
+  int32_t centered = (int32_t) input - 540;
 
-  int32_t scaled = centered * 16;
-  scaled += 5000;
+  int32_t scaled = centered * 64;
 
   // Clamp in case of slight overflow when x == 4096
   if (scaled > 32767) scaled = 32767;
@@ -53,6 +70,33 @@ void IRAM_ATTR onTimer() {
     portEXIT_CRITICAL_ISR(&timerMux);
 }
 
+// === ISR TTS Timer Handler ===
+void IRAM_ATTR onTtsTimer() {
+    portENTER_CRITICAL_ISR(&ttsTimerMux);
+
+    uint8_t sample = test_speech_8bit_raw[ttsReadIndex];
+
+    // Turn Latch pin off to prevent changes in the speaker side.
+    OE_OFF;
+    RCLK_OFF;
+    for (int8_t i = 0; i < 8; i++) {
+      if (sample & (1 << i)) {
+        SER_ON;
+      } else {
+        SER_OFF;
+      }
+      SRCLK_ON;
+      SRCLK_OFF;
+    }
+    RCLK_ON;
+    RCLK_OFF;
+    OE_ON;
+
+    ttsReadIndex = (ttsReadIndex + 1) % sizeof(test_speech_8bit_raw);
+
+    portEXIT_CRITICAL_ISR(&ttsTimerMux);
+}
+
 void setupADC() {
     // Configure ADC1, channel 7 (GPIO35)
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -65,6 +109,10 @@ void setupTimer() {
     timer = timerBegin(SAMPLE_RATE);
     timerAttachInterrupt(timer, &onTimer);
     timerAlarm(timer, 1, true, 0);
+
+    ttsTimer = timerBegin(SAMPLE_RATE);
+    timerAttachInterrupt(ttsTimer, &onTtsTimer);
+    timerAlarm(ttsTimer, 1, true, 0);
 }
 
 inline bool fastRead34() {
@@ -81,6 +129,11 @@ void setup() {
 
     pinMode(34, INPUT);
     pinMode(32, INPUT);
+
+    pinMode(26, OUTPUT);
+    pinMode(27, OUTPUT);
+    pinMode(14, OUTPUT);
+    pinMode(12, OUTPUT);
 
     setupADC();
     setupTimer();
@@ -218,6 +271,7 @@ void infer() {
 }
 
 void diagnostic() {
+    isDiagnostic = true;
     // Periodically print buffer status
     static uint32_t lastPrint = 0;
     if (millis() - lastPrint > 100) {
@@ -228,7 +282,7 @@ void diagnostic() {
         portEXIT_CRITICAL(&timerMux);
 
         if (fastReadGPIO32()) {
-          //Serial.println("I[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
+          Serial.println("I[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
           timerStop(timer);
           Serial.print('I');
           getContiguousFrame();
@@ -241,7 +295,7 @@ void diagnostic() {
 
         if (fastRead34()) {
           timerStop(timer);
-          Serial.print('I');
+          //Serial.print('I');
           getContiguousFrame();
           Serial.print('D');
           Serial.print(">");
@@ -249,6 +303,13 @@ void diagnostic() {
           for (int i = 0; i < 4; i++) {
             Serial.write(sample_len_bytes[i]);
           }
+
+          for (int i = 0; i < BUFFER_SIZE; i++) {
+            unsigned char* sample_bytes = short_to_bytes(audioBuffer[i]);
+            Serial.write(sample_bytes[0]);
+            Serial.write(sample_bytes[1]);
+          }
+
           /*
           int endIndex = writeIndex - 1;
           if (endIndex < 0) {
@@ -264,11 +325,13 @@ void diagnostic() {
           }
           */
 
+          /*
           for (int i = 0; i < BUFFER_SIZE; i++) {
             unsigned char* sample_bytes = short_to_bytes(processedAudioBuffer[i]);
             Serial.write(sample_bytes[0]);
             Serial.write(sample_bytes[1]);
           }
+          */
 
           timerStart(timer);
         }
@@ -277,6 +340,7 @@ void diagnostic() {
 
 void loop() {
     // Periodically print buffer status
+    //diagnostic();
     static uint32_t lastPrint = 0;
     if (millis() - lastPrint > 1500) {
         //Serial.println("I[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
