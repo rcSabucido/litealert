@@ -1,10 +1,23 @@
+#include <WiFi.h>
+#include <WiFiAP.h>
+#include <WiFiClient.h>
+#include <WiFiGeneric.h>
+#include <WiFiMulti.h>
+#include <WiFiSTA.h>
+#include <WiFiScan.h>
+#include <WiFiServer.h>
+#include <WiFiType.h>
+#include <WiFiUdp.h>
+ 
 #include <driver/adc.h>
 #include "esp_adc_cal.h"
 #include "soc/gpio_struct.h"
 
 #include <supermeatboy1-project-1_inferencing.h>
 
-#include "test_speech_8bit.h"
+#include "command_received_audio.h"
+
+#include "env.h"
 
 // === CONFIG ===
 #define MIC_PIN ADC1_CHANNEL_7  // GPIO35
@@ -17,6 +30,8 @@ volatile int16_t processedAudioBuffer[BUFFER_SIZE];
 
 volatile int32_t writeIndex = 0;
 volatile int32_t ttsReadIndex = 0;
+
+volatile bool authenticatedServ = false;
 
 bool isDiagnostic = false;
 
@@ -45,7 +60,10 @@ esp_adc_cal_characteristics_t adc_chars;
 int16_t adc_to_short(int input) {
   int32_t centered = (int32_t) input - 540;
 
-  int32_t scaled = centered * 64;
+  int32_t scaled = centered * 32;
+  scaled -= 19264;
+  scaled += 11445;
+  scaled += 3626;
 
   // Clamp in case of slight overflow when x == 4096
   if (scaled > 32767) scaled = 32767;
@@ -74,7 +92,7 @@ void IRAM_ATTR onTimer() {
 void IRAM_ATTR onTtsTimer() {
     portENTER_CRITICAL_ISR(&ttsTimerMux);
 
-    uint8_t sample = test_speech_8bit_raw[ttsReadIndex];
+    uint8_t sample = command_received_audio_raw[ttsReadIndex];
 
     // Turn Latch pin off to prevent changes in the speaker side.
     OE_OFF;
@@ -92,7 +110,11 @@ void IRAM_ATTR onTtsTimer() {
     RCLK_OFF;
     OE_ON;
 
-    ttsReadIndex = (ttsReadIndex + 1) % sizeof(test_speech_8bit_raw);
+    if (ttsReadIndex + 1 >= sizeof(command_received_audio_raw)) {
+      timerStop(ttsTimer);
+      timerRestart(ttsTimer);
+    }
+    ttsReadIndex = (ttsReadIndex + 1) % sizeof(command_received_audio_raw);
 
     portEXIT_CRITICAL_ISR(&ttsTimerMux);
 }
@@ -113,6 +135,24 @@ void setupTimer() {
     ttsTimer = timerBegin(SAMPLE_RATE);
     timerAttachInterrupt(ttsTimer, &onTtsTimer);
     timerAlarm(ttsTimer, 1, true, 0);
+    timerStop(ttsTimer);
+    timerRestart(ttsTimer);
+}
+
+WiFiClient netClient;
+
+void setupWifi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI__SSID, WIFI__PASSWORD);
+  Serial.print("Connecting to WiFi ..");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(1000);
+  }
+  Serial.println();
+
+  Serial.println("Local IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 inline bool fastRead34() {
@@ -137,6 +177,7 @@ void setup() {
 
     setupADC();
     setupTimer();
+    setupWifi();
 }
 
 unsigned char* short_to_bytes(int16_t n) {
@@ -244,22 +285,31 @@ static int microphone_audio_signal_get_data(size_t offset,
     return 0;
 }
 
-void infer() {
+static String strOut = "";
+
+String infer() {
     signal_t signal;
     signal.total_length = BUFFER_SIZE;
     signal.get_data = &microphone_audio_signal_get_data;
+    strOut = "";
 
     ei_impulse_result_t result = { 0 };
 
     EI_IMPULSE_ERROR r = run_classifier(&signal, &result, false);
-    if (r != EI_IMPULSE_OK) return;
+    if (r != EI_IMPULSE_OK) return "";
 
     // Skip if there is too much background noise.
-    if (result.classification[0].value > 0.45) {
-      return;
-    }
+    //if (result.classification[0].value > 0.45) {
+    //  return;
+    //}
     //Serial.printf("\nPredictions:\n");
     for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        strOut += result.classification[i].label;
+        strOut += ":";
+        strOut += result.classification[i].value;
+        if (i < EI_CLASSIFIER_LABEL_COUNT - 1) {
+          strOut += "\n";
+        }
         Serial.printf("%s:%.3f",
             result.classification[i].label,
             result.classification[i].value);
@@ -267,7 +317,14 @@ void infer() {
           Serial.print(",");
         }
     }
+
+    if (result.classification[0].value < 0.6 && (result.classification[1].value > 0.7 || result.classification[4].value > 0.7)) {
+      timerStart(ttsTimer);
+    }
+
     Serial.println();
+
+    return strOut;
 }
 
 void diagnostic() {
@@ -341,13 +398,42 @@ void diagnostic() {
 void loop() {
     // Periodically print buffer status
     //diagnostic();
+
     static uint32_t lastPrint = 0;
     if (millis() - lastPrint > 1500) {
-        //Serial.println("I[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
+        Serial.println("I[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
         //timerStop(timer);
         getContiguousFrame();
 
         infer();
         //timerStart(timer);
+
+        //timerStop(timer);
+        //timerStop(ttsTimer);
+        //timerStart(ttsTimer);
+        //timerStart(timer);
+        lastPrint = millis();
+
+        if (fastRead34()) {
+          timerStart(ttsTimer);
+        }
+        
+        if (!netClient.connected()) {
+          Serial.println("Connecting.");
+          netClient.connect(SERVER__HOST, SERVER__PORT);
+        }
+        if (netClient.connected()) {
+          if (!authenticatedServ) {
+            Serial.println("Sending secret.");
+            netClient.println(SERVER__SECRET);
+            delay(1000);
+            authenticatedServ = true;
+          } else if (strOut.length() > 3) {
+            Serial.println("Sending ordinary data.");
+            //Serial.println(strOut.c_str());
+            netClient.println("=== WakeAlert-ESP32 LOGIN ===");
+            netClient.println(strOut.c_str());
+          }
+        }
     }
 }

@@ -1,9 +1,18 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:simple_ripple_animation/simple_ripple_animation.dart';
 import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
 
+Future getPermissions()async{
+  try{
+    await Permission.bluetooth.request();
+  } catch(e) {
+    print(e.toString());
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -20,13 +29,23 @@ class HomePage extends StatefulWidget {
   final String title;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   //int _counter = 0;
-  bool paired = true;
   int batteryPercentage = 75;
+  bool connected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    getPermissions();
+  }
+
+  void setConnected(bool newConnected) {
+    setState(() { connected = newConnected; });
+  }
 
   /*
   void _incrementCounter() {
@@ -108,16 +127,16 @@ class _HomePageState extends State<HomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Text(
-              paired
-                  ? 'Your WakeAlert device has\nbeen paired successfully.'
-                  : 'Pair your WakeAlert device\nwith Bluetooth to your phone.',
+              connected
+                  ? 'Your WakeAlert device has\nbeen connected successfully.'
+                  : 'Connect your WakeAlert device via\nthe same Wi-Fi network as your phone.',
               textAlign: TextAlign.center,
 
               style: Theme.of(context).textTheme.titleLarge,
             ),
             Padding(
               padding: EdgeInsets.only(top: 50, bottom: 40),
-              child: paired
+              child: connected
                   ? SizedBox(
                       width: 256,
                       height: 256,
@@ -161,7 +180,7 @@ class _HomePageState extends State<HomePage> {
                             fit: BoxFit.fill,
                             child: Padding(
                               padding: EdgeInsets.all(10),
-                              child: Icon(Icons.bluetooth),
+                              child: Icon(Icons.wifi_tethering),
                             ),
                           ),
                         ),
@@ -187,7 +206,7 @@ class _HomePageState extends State<HomePage> {
                   bottom: 20,
                 ),
                 child: Text(
-                  paired ? "Paired" : "Pairing",
+                  connected ? "Connected" : "Connecting",
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),

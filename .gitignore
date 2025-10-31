@@ -49,3 +49,9 @@ app.*.map.json
 .flutter.pid
 
 *.bak
+embedded/esp32_code/env.h
+goojfc.h
+
+*.env
+*.env.local
+*.raw

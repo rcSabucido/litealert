@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:litealert/pages/contacts.dart';
 import 'package:litealert/pages/home.dart';
+import 'package:litealert/services/client.dart';
 
-void main() {
+final GlobalKey<HomePageState> homePageStateKey = GlobalKey<HomePageState>();
+
+Future main() async {
+  await dotenv.load(fileName: ".env");
+
+  startClient();
   runApp(const MyApp());
 }
 
@@ -47,7 +54,7 @@ class _AppScreenState extends State<AppScreen> {
 
   // List of widgets for each page
   final List<Widget> _pages = [
-    HomePage(title: "Home"),
+    HomePage(title: "Home", key: homePageStateKey),
     ContactsPage(title: 'Contacts'),
   ];
 
